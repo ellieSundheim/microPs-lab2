@@ -24,11 +24,15 @@ module top(input logic reset,
 
 endmodule
 
+//displays sum of given digits
 module led_logic(input logic [3:0] s1,
                  input logic [3:0] s2,
                  output logic [4:0] led);
+        assign led = s1 + s2;
 endmodule
 
+// apparently humans can see flicker below 90Hz
+// switching time of electronics is limited by ??
 module display_muxer #(parameter NUM_CYCLES_ON_EXP = 4) //NUM_CYCLES_ON_EXP sets the number of clk cycles (2^N) that each side of the display is on for
                     (input logic clk,
                      input logic [3:0] s1,s2,
@@ -40,10 +44,9 @@ module display_muxer #(parameter NUM_CYCLES_ON_EXP = 4) //NUM_CYCLES_ON_EXP sets
         counter <= counter + 1;
 
     assign anode1_en = counter[NUM_CYCLES_ON_EXP];
-
-
 endmodule
 
+// resettable, enabled flip flop
 module flopren #(parameter WIDTH = 4)
                 (input logic clk,
                 input logic reset,
@@ -58,11 +61,15 @@ module flopren #(parameter WIDTH = 4)
     end
 endmodule
 
+
+//flops to hold the previous values of each digit
 module s_memory(input logic reset,
                input logic clk,
                input logic write1_en, 
                input logic [3:0] s,
                output logic [3:0] s1, s2);
+        flopren dig1flop (clk, reset, write1_en, s, s1);
+        flopren dig2flop (clk, reset, ~write1_en, s, s2);
 endmodule
 
 module oscillator(output logic clk);
