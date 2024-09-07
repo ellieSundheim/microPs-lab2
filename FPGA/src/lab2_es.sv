@@ -33,17 +33,33 @@ endmodule
 
 // apparently humans can see flicker below 90Hz
 // switching time of electronics is limited by ??
-module display_muxer #(parameter NUM_CYCLES_ON_EXP = 4) //NUM_CYCLES_ON_EXP sets the number of clk cycles (2^N) that each side of the display is on for
+// to cut from 24 Mhz to 90 Hz, divide by 2^18 (roughly)
+module display_muxer #(parameter NUM_CYCLES_ON_EXP = 18) //NUM_CYCLES_ON_EXP sets the number of clk cycles (2^N) that each side of the display is on for
                     (input logic clk,
                      input logic [3:0] s1,s2,
                      output logic anode1_en,
                      output logic [3:0] sshow);
 
-    logic [:0] counter;
+    logic [NUM_CYCLES_ON_EXP-1:0] counter;
     always_ff @(posedge clk)
         counter <= counter + 1;
 
-    assign anode1_en = counter[NUM_CYCLES_ON_EXP];
+    assign anode1_en = counter[NUM_CYCLES_ON_EXP-1];
+    mux displayMux(anode1_en, s1, s2, sshow);
+
+endmodule
+
+module mux #(parameter WIDTH = 4)
+            (input logic select,
+            input logic [WIDTH-1:0] s0, s1,
+            output logic [WIDTH-1:0] output);
+
+            always_comb
+            case (select):
+                1'b0: output = s0;
+                1'b1: output = s1;
+                default: output = 1'bx;
+            endcase
 endmodule
 
 // resettable, enabled flip flop
