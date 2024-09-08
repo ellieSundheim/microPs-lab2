@@ -1,0 +1,9 @@
+// led_logic_testvectors.t
+// Ellie Sundheim (esundheim@hmc.edu)
+// 9/7/24
+
+// s1[3:0]_s2[3:0]_led[4:0]
+0000_0000_00000
+0001_0001_00010
+1010_0101_01111
+1111_1111_10000

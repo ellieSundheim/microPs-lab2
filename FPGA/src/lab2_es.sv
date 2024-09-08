@@ -16,8 +16,8 @@ module top(input logic reset,
         logic [3:0] s1, s2, sshow; //sshow = s on display
 
          // structural verilog, modules go here
-        oscillator myOsc(reset, clk);
-        s_memory mySmemory(reset, clk, s, write1_en, s, s1, s2);
+        oscillator myOsc(clk);
+        s_memory mySmemory(reset, clk, write1_en, s, s1, s2);
         led_logic myLEDLogic(s1, s2, led);
         display_muxer myDisplayMuxer(clk, s1, s2, anode1_en, sshow);
         seven_seg_disp mySevenSegDisp(sshow, seg);
@@ -52,13 +52,13 @@ endmodule
 module mux #(parameter WIDTH = 4)
             (input logic select,
             input logic [WIDTH-1:0] s0, s1,
-            output logic [WIDTH-1:0] output);
+            output logic [WIDTH-1:0] out);
 
             always_comb
-            case (select):
-                1'b0: output = s0;
-                1'b1: output = s1;
-                default: output = 1'bx;
+            case (select)
+                1'b0: out = s0;
+                1'b1: out = s1;
+                default: out = 1'bx;
             endcase
 endmodule
 
