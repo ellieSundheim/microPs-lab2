@@ -4,22 +4,20 @@ Date: 9/6/24
 Purpose: This file contains the modules needed to multiplex and run 2 seven segement displays using one set of FPGA pins
 */
 
-module top(input logic reset,
-            input logic [3:0] s,
-            input logic write1_en,
+module top(input logic [3:0] s1, s2,
             output logic [4:0] led,
             output logic anode1_en,
             output logic [6:0] seg);
 
         // internal variables
+		logic reset;
         logic clk;
-        logic [3:0] s1, s2, sshow; //sshow = s on display
+        logic [3:0] sshow; //sshow = s on display
 
          // structural verilog, modules go here
         oscillator myOsc(clk);
-        s_memory mySmemory(reset, clk, write1_en, s, s1, s2);
         led_logic myLEDLogic(s1, s2, led);
-        display_muxer myDisplayMuxer(clk, s1, s2, anode1_en, sshow);
+        display_muxer myDisplayMuxer(clk, reset, s1, s2, anode1_en, sshow);
         seven_seg_disp mySevenSegDisp(sshow, seg);
 
 endmodule
@@ -36,19 +34,22 @@ endmodule
 // to cut from 24 Mhz to 90 Hz, divide by 2^18 (roughly)
 module display_muxer #(parameter NUM_CYCLES_ON_EXP = 18) //NUM_CYCLES_ON_EXP sets the number of clk cycles (2^N) that each side of the display is on for
                     (input logic clk,
+					 input logic reset,
                      input logic [3:0] s1,s2,
                      output logic anode1_en,
                      output logic [3:0] sshow);
 
     logic [NUM_CYCLES_ON_EXP-1:0] counter;
-    always_ff @(posedge clk)
-        counter <= counter + 1;
+    always_ff @(posedge clk, posedge reset)
+		if (reset) counter <= 0;
+        else counter <= counter + 1;
 
     assign anode1_en = counter[NUM_CYCLES_ON_EXP-1];
     mux displayMux(anode1_en, s1, s2, sshow);
 
 endmodule
 
+//arbitrary width mux, defaults to 4
 module mux #(parameter WIDTH = 4)
             (input logic select,
             input logic [WIDTH-1:0] s0, s1,
@@ -62,32 +63,7 @@ module mux #(parameter WIDTH = 4)
             endcase
 endmodule
 
-// resettable, enabled flip flop
-module flopren #(parameter WIDTH = 4)
-                (input logic clk,
-                input logic reset,
-                input logic enable,
-                input logic [WIDTH-1:0] d,
-                output logic [WIDTH-1:0] q);
-
-    always_ff @(posedge clk, posedge reset)
-    begin
-        if (reset) q <= 0;
-        else if (enable) q <= d;
-    end
-endmodule
-
-
-//flops to hold the previous values of each digit
-module s_memory(input logic reset,
-               input logic clk,
-               input logic write1_en, 
-               input logic [3:0] s,
-               output logic [3:0] s1, s2);
-        flopren dig1flop (clk, reset, write1_en, s, s1);
-        flopren dig2flop (clk, reset, ~write1_en, s, s2);
-endmodule
-
+// internal oscillator
 module oscillator(output logic clk);
 
 	logic int_osc;
@@ -100,6 +76,7 @@ module oscillator(output logic clk);
   
 endmodule
 
+// combinational logic for seven segment display
 module seven_seg_disp(input logic[3:0] s,
 					  output logic[6:0] seg);
 	always_comb
