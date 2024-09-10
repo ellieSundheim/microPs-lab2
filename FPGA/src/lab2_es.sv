@@ -4,67 +4,68 @@ Date: 9/6/24
 Purpose: This file contains the modules needed to multiplex and run 2 seven segement displays using one set of FPGA pins
 */
 
-module top(input logic reset,
-            input logic [3:0] s,
-            input logic write1_en,
+module top(input logic [3:0] s1, s2,
             output logic [4:0] led,
-            output logic anode1_en,
+            output logic anode1_en, anode2_en,
             output logic [6:0] seg);
 
         // internal variables
+		logic reset;
         logic clk;
-        logic [3:0] s1, s2, sshow; //sshow = s on display
+        logic [3:0] sshow; //sshow = s on display
 
          // structural verilog, modules go here
-        oscillator myOsc(reset, clk);
-        s_memory mySmemory(reset, clk, s, write1_en, s, s1, s2);
+        oscillator myOsc(clk);
         led_logic myLEDLogic(s1, s2, led);
-        display_muxer myDisplayMuxer(clk, s1, s2, anode1_en, sshow);
+        display_muxer #(16) myDisplayMuxer(clk, reset, s1, s2, anode1_en, anode2_en, sshow);
         seven_seg_disp mySevenSegDisp(sshow, seg);
 
 endmodule
 
+//displays sum of given digits
 module led_logic(input logic [3:0] s1,
                  input logic [3:0] s2,
                  output logic [4:0] led);
+        assign led = s1 + s2;
 endmodule
 
-module display_muxer #(parameter NUM_CYCLES_ON_EXP = 4) //NUM_CYCLES_ON_EXP sets the number of clk cycles (2^N) that each side of the display is on for
+// apparently humans can see flicker below 90Hz
+// switching time of electronics is limited by ??
+// to cut from 24 Mhz to 90 Hz, divide by 2^18 (roughly)
+module display_muxer #(parameter NUM_CYCLES_ON_EXP = 18) //NUM_CYCLES_ON_EXP sets the number of clk cycles (2^N) that each side of the display is on for
                     (input logic clk,
+					 input logic reset,
                      input logic [3:0] s1,s2,
-                     output logic anode1_en,
+                     output logic anode1_en, anode2_en,
                      output logic [3:0] sshow);
 
-    logic [:0] counter;
-    always_ff @(posedge clk)
-        counter <= counter + 1;
-
-    assign anode1_en = counter[NUM_CYCLES_ON_EXP];
-
-
-endmodule
-
-module flopren #(parameter WIDTH = 4)
-                (input logic clk,
-                input logic reset,
-                input logic enable,
-                input logic [WIDTH-1:0] d,
-                output logic [WIDTH-1:0] q);
+    logic [NUM_CYCLES_ON_EXP-1:0] counter;
 
     always_ff @(posedge clk, posedge reset)
-    begin
-        if (reset) q <= 0;
-        else if (enable) q <= d;
-    end
+		if (reset) counter <= 0;
+        	else counter <= counter + 1;
+
+    assign anode1_en = counter[NUM_CYCLES_ON_EXP-1];
+	assign anode2_en = ~anode1_en;
+    mux displayMux(anode1_en, s1, s2, sshow);
+
 endmodule
 
-module s_memory(input logic reset,
-               input logic clk,
-               input logic write1_en, 
-               input logic [3:0] s,
-               output logic [3:0] s1, s2);
+//arbitrary width mux, defaults to 4
+module mux #(parameter WIDTH = 4)
+            (input logic select,
+            input logic [WIDTH-1:0] s0, s1,
+            output logic [WIDTH-1:0] out);
+
+            always_comb
+            case (select)
+                1'b0: out = s0;
+                1'b1: out = s1;
+                default: out = 1'bx;
+            endcase
 endmodule
 
+// internal oscillator
 module oscillator(output logic clk);
 
 	logic int_osc;
@@ -77,6 +78,7 @@ module oscillator(output logic clk);
   
 endmodule
 
+// combinational logic for seven segment display
 module seven_seg_disp(input logic[3:0] s,
 					  output logic[6:0] seg);
 	always_comb
@@ -106,4 +108,54 @@ module seven_seg_disp(input logic[3:0] s,
 		seg = ~seg;
 	end 
 
+endmodule
+
+
+// testbench settings
+`timescale 1ns/1ns
+`default_nettype none
+`define N_TV 8
+
+//testbench
+module testbench();
+	logic clk, reset;
+	logic [3:0] s1, s2;
+	logic anode1_en, anode1_en_expected;
+	logic anode2_en, anode2_en_expected;
+	logic [4:0] led, led_expected;
+	logic [6:0] seg, seg_expected;
+	logic [3:0] sshow;
+	
+	
+	logic [31:0] vectornum, errors;
+	logic [10:0] testvectors[10000:0]; // vectors of format s1[3:0]_s2[3:0]_seg[6:0]
+	
+	//instantiate DUT
+	//top dut(s1, s2, led, anode1_en, seg);
+	oscillator myOsc(clk);
+	display_muxer #(18) myDispMux (clk, reset, s1, s2, anode1_en, anode2_en, sshow);
+	
+	
+	//generate clock signal
+/*
+	always 
+		begin
+			clk = 1; #5;
+			clk = 0; #5;
+		end*/
+		
+		
+	// At the start of the simulation:
+	//  - Load the testvectors
+	//  - Pulse the reset line (if applicable)
+ initial
+   begin
+     // $readmemb("lab2\sim\led_logic_testvectors.tv", testvectors, 0, `N_TV - 1);
+     vectornum = 0; errors = 0;
+     reset = 0; #12; reset = 1; #27; reset = 0;
+	 
+     s1 = 4'b0001; s2 = 4'b0010; #10;
+	 
+   end
+  
 endmodule
